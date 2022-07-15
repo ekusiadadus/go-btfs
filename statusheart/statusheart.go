@@ -26,7 +26,7 @@ var (
 
 const (
 	ReportStatusTime   = 10 * time.Second
-	statusHeartAddress = "0x220F77A56F2448D8C0Dc7b1B38275E2760d8d309"
+	statusHeartAddress = "0xE42016a68511BFfdcE74E04DD35DCD7bf75582c8"
 )
 
 func Init(transactionService transaction.Service) error {
@@ -81,10 +81,11 @@ func (s *service) ReportStatus() (common.Hash, error) {
 	version := spin.GSignedInfo.Version
 	num := spin.GSignedInfo.Nonce
 	bttcAddress := common.HexToAddress(spin.GSignedInfo.BttcAddress)
+	signedTime := spin.GSignedInfo.SignedTime
 	signature, err := hex.DecodeString(strings.Replace(spin.GSignedInfo.Signature, "0x", "", -1))
-	fmt.Println("...... ReportHeartStatus, param = ", peer, createTime, version, num, bttcAddress, signature)
+	fmt.Println("...... ReportHeartStatus, param = ", peer, createTime, version, num, bttcAddress, signedTime, signature)
 
-	callData, err := statusABI.Pack("reportStatus", peer, createTime, version, num, bttcAddress, signature)
+	callData, err := statusABI.Pack("reportStatus", peer, createTime, version, num, bttcAddress, signedTime, signature)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -129,9 +130,8 @@ func (s *service) genHashExt(ctx context.Context) (common.Hash, error) {
 		return common.Hash{}, err
 	}
 
-	statusAddress := common.HexToAddress("0xA258c9D8E2960e09D319466386F4628A864809cD")
 	request := &transaction.TxRequest{
-		To:   &statusAddress,
+		To:   &s.statusAddress,
 		Data: callData,
 	}
 

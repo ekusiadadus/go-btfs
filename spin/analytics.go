@@ -301,7 +301,7 @@ func (dc *dcWrap) doSendData(ctx context.Context, config *config.Config, sm *pb.
 			chain.ErrStatus = nil
 		}
 
-		fmt.Printf("... UpdateMetricsAndDiscovery resp = %+v, server = %+v \n", resp, config.Services.StatusServerDomain)
+		fmt.Printf("__________ UpdateMetricsAndDiscovery resp = %+v, server = %+v \n", resp, config.Services.StatusServerDomain)
 		if err == nil && len(resp.Peer) > 0 {
 			GSignedInfo = SignedInfo{
 				Peer:        resp.Peer,
