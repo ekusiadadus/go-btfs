@@ -1,0 +1,181 @@
+package spin
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	config "github.com/TRON-US/go-btfs-config"
+	"github.com/bittorrent/go-btfs/chain"
+	"github.com/bittorrent/go-btfs/core"
+	onlinePb "github.com/tron-us/go-btfs-common/protos/online"
+	pb "github.com/tron-us/go-btfs-common/protos/status"
+	cgrpc "github.com/tron-us/go-btfs-common/utils/grpc"
+
+	"github.com/cenkalti/backoff/v4"
+	"github.com/gogo/protobuf/proto"
+	ic "github.com/libp2p/go-libp2p-crypto"
+)
+
+type SignedInfo struct {
+	Peer        string `json:"peer"`
+	CreatedTime uint32 `json:"created_time"`
+	Version     string `json:"version"`
+	Nonce       uint32 `json:"nonce"`
+	BttcAddress string `json:"bttc_address"`
+	SignedTime  uint32 `json:"signed_time"`
+	Signature   string `json:"signature"`
+	Reported    bool
+	LastTime    time.Time
+}
+
+var GSignedInfo SignedInfo
+var OnlineServerDomain = "http://localhost:50051"
+
+func (dc *dcWrap) doSendDataOnline(ctx context.Context, config *config.Config, sm *onlinePb.ReqSignMetrics) error {
+	cb := cgrpc.OnlineClient(config.Services.StatusServerDomain)
+	return cb.WithContext(ctx, func(ctx context.Context, client onlinePb.OnlineServiceClient) error {
+		resp, err := client.UpdateSignMetrics(ctx, sm)
+		if err != nil {
+			chain.CodeStatus = chain.ConstCodeError
+			chain.ErrStatus = err
+			return err
+		} else {
+			chain.CodeStatus = chain.ConstCodeSuccess
+			chain.ErrStatus = nil
+		}
+
+		fmt.Printf(".... online, UpdateSignMetrics resp = %+v, server = %+v \n", resp, config.Services.StatusServerDomain)
+		if (resp.SignedInfo != nil) && len(resp.SignedInfo.Peer) > 0 {
+			GSignedInfo = SignedInfo{
+				Peer:        resp.SignedInfo.Peer,
+				CreatedTime: resp.SignedInfo.CreatedTime,
+				Version:     resp.SignedInfo.Version,
+				Nonce:       resp.SignedInfo.Nonce,
+				BttcAddress: resp.SignedInfo.BttcAddress,
+				SignedTime:  resp.SignedInfo.SignedTime,
+				Signature:   resp.Signature,
+				Reported:    false,
+				LastTime:    time.Now(),
+			}
+		}
+
+		return err
+	})
+}
+
+func (dc *dcWrap) sendDataOnline(node *core.IpfsNode, config *config.Config) {
+	sm, errs, err := dc.doPrepDataOnline(node)
+	if errs == nil {
+		errs = make([]error, 0)
+	}
+	var sb strings.Builder
+	if err != nil {
+		errs = append(errs, err)
+	}
+	for _, err := range errs {
+		sb.WriteString(err.Error())
+		sb.WriteRune('\n')
+	}
+	log.Debug(sb.String())
+	// If complete prep failure we return
+	if err != nil {
+		return
+	}
+
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = maxRetryTotal
+	backoff.Retry(func() error {
+		//fmt.Println("... req online ", sm)
+
+		err := dc.doSendDataOnline(node.Context(), config, sm)
+		if err != nil {
+			log.Infof("failed： doSendDataOnline to online server: ", err)
+		} else {
+			log.Debug("sent doSendDataOnline to online server")
+		}
+		return err
+	}, bo)
+}
+
+// doPrepData gathers the latest analytics and returns (signed object, list of reporting errors, failure)
+func (dc *dcWrap) doPrepDataOnline(btfsNode *core.IpfsNode) (*onlinePb.ReqSignMetrics, []error, error) {
+	errs := dc.update(btfsNode)
+	payload, err := dc.getPayloadOnline(btfsNode)
+	if err != nil {
+		return nil, errs, fmt.Errorf("failed to marshal dataCollection object to a byte array: %s", err.Error())
+	}
+	if dc.node.PrivateKey == nil {
+		return nil, errs, fmt.Errorf("node's private key is null")
+	}
+
+	signature, err := dc.node.PrivateKey.Sign(payload)
+	if err != nil {
+		return nil, errs, fmt.Errorf("failed to sign raw data with node private key: %s", err.Error())
+	}
+
+	publicKey, err := ic.MarshalPublicKey(dc.node.PrivateKey.GetPublic())
+	if err != nil {
+		return nil, errs, fmt.Errorf("failed to marshal node public key: %s", err.Error())
+	}
+
+	sm := new(onlinePb.ReqSignMetrics)
+	sm.Payload = payload
+	sm.Signature = signature
+	sm.PublicKey = publicKey
+	return sm, errs, nil
+}
+
+func (dc *dcWrap) doSendData(ctx context.Context, config *config.Config, sm *pb.SignedMetrics) error {
+	cb := cgrpc.StatusClient(config.Services.StatusServerDomain)
+	return cb.WithContext(ctx, func(ctx context.Context, client pb.StatusServiceClient) error {
+		_, err := client.UpdateMetricsAndDiscovery(ctx, sm)
+		if err != nil {
+			chain.CodeStatus = chain.ConstCodeError
+			chain.ErrStatus = err
+		} else {
+			chain.CodeStatus = chain.ConstCodeSuccess
+			chain.ErrStatus = nil
+		}
+		return err
+	})
+}
+
+func (dc *dcWrap) getPayloadOnline(btfsNode *core.IpfsNode) ([]byte, error) {
+	var lastSignedInfo *onlinePb.SignedInfo
+	var lastSignature string
+	var lastTime time.Time
+
+	if len(GSignedInfo.Peer) <= 0 {
+		lastSignedInfo = nil
+		lastSignature = ""
+	} else {
+		lastSignedInfo = &onlinePb.SignedInfo{
+			Peer:        GSignedInfo.Peer,
+			CreatedTime: GSignedInfo.CreatedTime,
+			Version:     GSignedInfo.Version,
+			Nonce:       GSignedInfo.Nonce,
+			BttcAddress: GSignedInfo.BttcAddress,
+			SignedTime:  GSignedInfo.SignedTime,
+		}
+		lastSignature = GSignedInfo.Signature
+		lastTime = GSignedInfo.LastTime
+	}
+
+	pn := &onlinePb.PayLoadInfo{
+		NodeId:         btfsNode.Identity.Pretty(),
+		Node:           dc.pn,
+		LastSignedInfo: lastSignedInfo,
+		LastSignature:  lastSignature,
+		LastTime:       lastTime,
+	}
+	bytes, err := proto.Marshal(pn)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("... online, pn.LastSignedInfo:%+v, pn.LastSignature:%+v, pn.LastTime:%+v \n", pn.LastSignedInfo, pn.LastSignature, pn.LastTime)
+
+	return bytes, nil
+}

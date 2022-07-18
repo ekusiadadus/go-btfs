@@ -125,7 +125,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954
 	github.com/thedevsaddam/gojsonq/v2 v2.5.2
-	github.com/tron-us/go-btfs-common v0.8.9-pre8
+	github.com/tron-us/go-btfs-common v0.8.9-pre11
 	//github.com/tron-us/go-btfs-common v0.8.6
 	github.com/tron-us/go-common/v2 v2.3.0
 	github.com/tron-us/protobuf v1.3.7
@@ -148,6 +148,8 @@ require (
 	gotest.tools v2.2.0+incompatible
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
+
+replace github.com/tron-us/go-btfs-common => /Users/laocheng/go/src/github.com/TRON-US/go-btfs-common
 
 replace github.com/ipfs/go-ipld-format => github.com/TRON-US/go-ipld-format v0.2.0
 

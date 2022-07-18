@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bittorrent/go-btfs/chain"
 	"github.com/bittorrent/go-btfs/core"
 	"github.com/bittorrent/go-btfs/core/commands/storage/helper"
 
@@ -15,7 +14,6 @@ import (
 	iface "github.com/TRON-US/interface-go-btfs-core"
 	nodepb "github.com/tron-us/go-btfs-common/protos/node"
 	pb "github.com/tron-us/go-btfs-common/protos/status"
-	cgrpc "github.com/tron-us/go-btfs-common/utils/grpc"
 
 	"github.com/alecthomas/units"
 	"github.com/cenkalti/backoff/v4"
@@ -276,49 +274,6 @@ func (dc *dcWrap) doPrepData(btfsNode *core.IpfsNode) (*pb.SignedMetrics, []erro
 	return sm, errs, nil
 }
 
-type SignedInfo struct {
-	Peer        string `json:"peer"`
-	CreatedTime uint32 `json:"created_time"`
-	Version     string `json:"version"`
-	Nonce       uint32 `json:"nonce"`
-	BttcAddress string `json:"bttc_address"`
-	SignedTime  uint32 `json:"signed_time"`
-	Signature   string `json:"signature"`
-	Reported    bool
-}
-
-var GSignedInfo SignedInfo
-
-func (dc *dcWrap) doSendData(ctx context.Context, config *config.Config, sm *pb.SignedMetrics) error {
-	cb := cgrpc.StatusClient(config.Services.StatusServerDomain)
-	return cb.WithContext(ctx, func(ctx context.Context, client pb.StatusServiceClient) error {
-		resp, err := client.UpdateMetricsAndDiscovery(ctx, sm)
-		if err != nil {
-			chain.CodeStatus = chain.ConstCodeError
-			chain.ErrStatus = err
-		} else {
-			chain.CodeStatus = chain.ConstCodeSuccess
-			chain.ErrStatus = nil
-		}
-
-		fmt.Printf("__________ UpdateMetricsAndDiscovery resp = %+v, server = %+v \n", resp, config.Services.StatusServerDomain)
-		if err == nil && len(resp.Peer) > 0 {
-			GSignedInfo = SignedInfo{
-				Peer:        resp.Peer,
-				CreatedTime: resp.CreatedTime,
-				Version:     resp.Version,
-				Nonce:       resp.Nonce,
-				BttcAddress: resp.BttcAddress,
-				SignedTime:  resp.SignedTime,
-				Signature:   resp.Signature,
-				Reported:    false,
-			}
-		}
-
-		return err
-	})
-}
-
 func (dc *dcWrap) getPayload(btfsNode *core.IpfsNode) ([]byte, error) {
 	dn, err := dc.getDiscoveryNodes()
 	if err != nil {
@@ -361,7 +316,7 @@ func (dc *dcWrap) getDiscoveryNodes() ([]*nodepb.DiscoveryNode, error) {
 
 func (dc *dcWrap) collectionAgent(node *core.IpfsNode) {
 	//tick := time.NewTicker(heartBeat)
-	tick := time.NewTicker(3 * time.Second)
+	tick := time.NewTicker(5 * time.Second)
 	defer tick.Stop()
 	// Force tick on immediate start
 	// make the configuration available in the for loop
@@ -376,6 +331,10 @@ func (dc *dcWrap) collectionAgent(node *core.IpfsNode) {
 		// consent can be changed without reinitializing data collection
 		if isAnalyticsEnabled(config) {
 			dc.sendData(node, config)
+		}
+
+		if isAnalyticsEnabled(config) {
+			dc.sendDataOnline(node, config)
 		}
 	}
 }
