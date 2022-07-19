@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bittorrent/go-btfs/chain"
 	"github.com/bittorrent/go-btfs/core"
 	"github.com/bittorrent/go-btfs/core/commands/storage/helper"
 
@@ -329,12 +330,25 @@ func (dc *dcWrap) collectionAgent(node *core.IpfsNode) {
 		}
 		// check config for explicit consent to data collect
 		// consent can be changed without reinitializing data collection
-		if isAnalyticsEnabled(config) {
-			dc.sendData(node, config)
-		}
+		//if isAnalyticsEnabled(config) {
+		//	dc.sendData(node, config)
+		//}
 
 		if isAnalyticsEnabled(config) {
-			dc.sendDataOnline(node, config)
+			report, err := chain.GetReportStatus()
+			if err != nil {
+				continue
+			}
+
+			now := time.Now()
+			// report only 1 hour, and must after 10 hour.
+			if (now.Unix()%86400) > report.ReportStatusSeconds &&
+				(now.Unix()%86400) < report.ReportStatusSeconds+3600 &&
+				now.Sub(report.LastReport) > 10*time.Hour {
+
+				dc.sendDataOnline(node, config)
+			}
+
 		}
 	}
 }

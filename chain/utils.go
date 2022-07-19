@@ -3,8 +3,11 @@ package chain
 import (
 	"encoding/base64"
 	"fmt"
+	onlinePb "github.com/tron-us/go-btfs-common/protos/online"
 	"io/ioutil"
+	"math/rand"
 	"os"
+	"time"
 
 	cmds "github.com/bittorrent/go-btfs-cmds"
 	oldcmds "github.com/bittorrent/go-btfs/commands"
@@ -154,6 +157,76 @@ func StoreChainIdIfNotExists(chainID int64, statestore storage.StateStorer) erro
 			fmt.Println("StoreChainIdIfNotExists: init StoreChainId err: ", err)
 			return err
 		}
+	}
+
+	return nil
+}
+
+// GetReportStatus from leveldb
+var keyReportStatus = "keyReportStatus"
+
+type ReportStatusInfo struct {
+	ReportStatusSeconds int64
+	LastReport          time.Time
+}
+
+func GetReportStatus() (*ReportStatusInfo, error) {
+	var reportStatusInfo ReportStatusInfo
+	err := StateStore.Get(keyReportStatus, &reportStatusInfo)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			reportStatusInfo = ReportStatusInfo{ReportStatusSeconds: int64(rand.Intn(100000000) % 86400), LastReport: time.Time{}}
+			err := StateStore.Put(keyReportStatus, reportStatusInfo)
+			if err != nil {
+				fmt.Println("StoreChainIdIfNotExists: init StoreChainId err: ", err)
+				return nil, err
+			}
+		}
+		return nil, err
+	}
+	return &reportStatusInfo, nil
+}
+
+func SetReportStatusTodayTrue() (*ReportStatusInfo, error) {
+	var reportStatusInfo ReportStatusInfo
+	err := StateStore.Get(keyReportStatus, &reportStatusInfo)
+	if err != nil {
+		return nil, err
+	}
+	reportStatusInfo.LastReport = time.Now()
+	err = StateStore.Put(keyReportStatus, reportStatusInfo)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("SetReportStatus: ok! ")
+	return &reportStatusInfo, nil
+}
+
+// GetLastOnline from leveldb
+var keyLastOnline = "keyLastOnline"
+
+type LastOnlineInfo struct {
+	LastSignedInfo onlinePb.SignedInfo
+	LastSignature  string
+	LastTime       time.Time
+}
+
+func GetLastOnline() (*LastOnlineInfo, error) {
+	var lastOnlineInfo LastOnlineInfo
+	err := StateStore.Get(keyLastOnline, &lastOnlineInfo)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &lastOnlineInfo, nil
+}
+func StoreOnline(lastOnlineInfo *LastOnlineInfo) error {
+	err := StateStore.Put(keyLastOnline, *lastOnlineInfo)
+	if err != nil {
+		fmt.Println("StoreOnline: init StoreChainId err: ", err)
+		return err
 	}
 
 	return nil

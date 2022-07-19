@@ -5,11 +5,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/bittorrent/go-btfs/chain"
 	"math/big"
 	"strings"
 	"time"
 
-	"github.com/bittorrent/go-btfs/spin"
 	"github.com/bittorrent/go-btfs/statusheart/abi"
 	"github.com/bittorrent/go-btfs/transaction"
 	"github.com/ethereum/go-ethereum/common"
@@ -25,8 +25,8 @@ var (
 )
 
 const (
-	ReportStatusTime   = 10 * time.Second
-	statusHeartAddress = "0xE42016a68511BFfdcE74E04DD35DCD7bf75582c8"
+	ReportStatusTime   = 5 * time.Second // 10 * time.Second
+	statusHeartAddress = "0x084616130594B1ac217216b4999057604ac9d753"
 )
 
 func Init(transactionService transaction.Service) error {
@@ -37,11 +37,7 @@ func Init(transactionService transaction.Service) error {
 		currentAddress = common.HexToAddress(statusHeartAddress)
 	}
 
-	statusHeart := New(currentAddress, transactionService)
-	err := statusHeart.CheckReportStatus() // CheckReport when node starts
-	if err != nil {
-		return err
-	}
+	New(currentAddress, transactionService)
 	return nil
 }
 
@@ -70,19 +66,33 @@ func New(statusAddress common.Address, transactionService transaction.Service) S
 	return serv
 }
 
-//report heart status
+// report heart status
 func (s *service) ReportStatus() (common.Hash, error) {
-	if len(spin.GSignedInfo.Peer) <= 0 {
+	lastOnline, err := chain.GetLastOnline()
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	fmt.Println("... 1. ReportStatus")
+	if lastOnline == nil {
+		return common.Hash{}, nil
+	}
+	if len(lastOnline.LastSignedInfo.Peer) <= 0 {
 		return common.Hash{}, nil
 	}
 
-	peer := spin.GSignedInfo.Peer
-	createTime := spin.GSignedInfo.CreatedTime
-	version := spin.GSignedInfo.Version
-	num := spin.GSignedInfo.Nonce
-	bttcAddress := common.HexToAddress(spin.GSignedInfo.BttcAddress)
-	signedTime := spin.GSignedInfo.SignedTime
-	signature, err := hex.DecodeString(strings.Replace(spin.GSignedInfo.Signature, "0x", "", -1))
+	fmt.Println("... 2. ReportStatus")
+
+	peer := lastOnline.LastSignedInfo.Peer
+	createTime := lastOnline.LastSignedInfo.CreatedTime
+	version := lastOnline.LastSignedInfo.Version
+	num := lastOnline.LastSignedInfo.Nonce
+	bttcAddress := common.HexToAddress(lastOnline.LastSignedInfo.BttcAddress)
+	signedTime := lastOnline.LastSignedInfo.SignedTime
+
+	fmt.Println("... 3. ReportStatus")
+	signature, err := hex.DecodeString(strings.Replace(lastOnline.LastSignature, "0x", "", -1))
+
 	fmt.Println("...... ReportHeartStatus, param = ", peer, createTime, version, num, bttcAddress, signedTime, signature)
 
 	callData, err := statusABI.Pack("reportStatus", peer, createTime, version, num, bttcAddress, signedTime, signature)

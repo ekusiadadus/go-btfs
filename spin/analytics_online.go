@@ -46,19 +46,21 @@ func (dc *dcWrap) doSendDataOnline(ctx context.Context, config *config.Config, s
 			chain.ErrStatus = nil
 		}
 
-		fmt.Printf(".... online, UpdateSignMetrics resp = %+v, server = %+v \n", resp, config.Services.StatusServerDomain)
+		fmt.Printf(".... online, lastSignedInfo = %+v \n", resp.SignedInfo)
 		if (resp.SignedInfo != nil) && len(resp.SignedInfo.Peer) > 0 {
-			GSignedInfo = SignedInfo{
-				Peer:        resp.SignedInfo.Peer,
-				CreatedTime: resp.SignedInfo.CreatedTime,
-				Version:     resp.SignedInfo.Version,
-				Nonce:       resp.SignedInfo.Nonce,
-				BttcAddress: resp.SignedInfo.BttcAddress,
-				SignedTime:  resp.SignedInfo.SignedTime,
-				Signature:   resp.Signature,
-				Reported:    false,
-				LastTime:    time.Now(),
+			onlineInfo := chain.LastOnlineInfo{
+				LastSignedInfo: onlinePb.SignedInfo{
+					Peer:        resp.SignedInfo.Peer,
+					CreatedTime: resp.SignedInfo.CreatedTime,
+					Version:     resp.SignedInfo.Version,
+					Nonce:       resp.SignedInfo.Nonce,
+					BttcAddress: resp.SignedInfo.BttcAddress,
+					SignedTime:  resp.SignedInfo.SignedTime,
+				},
+				LastSignature: resp.Signature,
+				LastTime:      time.Now(),
 			}
+			chain.StoreOnline(&onlineInfo)
 		}
 
 		return err
@@ -91,7 +93,8 @@ func (dc *dcWrap) sendDataOnline(node *core.IpfsNode, config *config.Config) {
 
 		err := dc.doSendDataOnline(node.Context(), config, sm)
 		if err != nil {
-			log.Infof("failed： doSendDataOnline to online server: ", err)
+			fmt.Printf(".... online, doSendDataOnline error = %+v \n", err)
+			log.Infof("failed： doSendDataOnline to online server: %+v ", err)
 		} else {
 			log.Debug("sent doSendDataOnline to online server")
 		}
@@ -147,20 +150,25 @@ func (dc *dcWrap) getPayloadOnline(btfsNode *core.IpfsNode) ([]byte, error) {
 	var lastSignature string
 	var lastTime time.Time
 
-	if len(GSignedInfo.Peer) <= 0 {
+	lastOnline, err := chain.GetLastOnline()
+	if err != nil {
+		return nil, err
+	}
+
+	if lastOnline == nil {
 		lastSignedInfo = nil
 		lastSignature = ""
 	} else {
 		lastSignedInfo = &onlinePb.SignedInfo{
-			Peer:        GSignedInfo.Peer,
-			CreatedTime: GSignedInfo.CreatedTime,
-			Version:     GSignedInfo.Version,
-			Nonce:       GSignedInfo.Nonce,
-			BttcAddress: GSignedInfo.BttcAddress,
-			SignedTime:  GSignedInfo.SignedTime,
+			Peer:        lastOnline.LastSignedInfo.Peer,
+			CreatedTime: lastOnline.LastSignedInfo.CreatedTime,
+			Version:     lastOnline.LastSignedInfo.Version,
+			Nonce:       lastOnline.LastSignedInfo.Nonce,
+			BttcAddress: lastOnline.LastSignedInfo.BttcAddress,
+			SignedTime:  lastOnline.LastSignedInfo.SignedTime,
 		}
-		lastSignature = GSignedInfo.Signature
-		lastTime = GSignedInfo.LastTime
+		lastSignature = lastOnline.LastSignature
+		lastTime = lastOnline.LastTime
 	}
 
 	pn := &onlinePb.PayLoadInfo{
