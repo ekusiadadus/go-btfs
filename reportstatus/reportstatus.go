@@ -25,8 +25,7 @@ var (
 )
 
 const (
-	ReportStatusTime   = 10 * time.Second // 10 * time.Second
-	statusHeartAddress = "0x084616130594B1ac217216b4999057604ac9d753"
+	ReportStatusTime = 10 * time.Second // 10 * time.Second
 )
 
 func Init(transactionService transaction.Service, cfg *config.Config, statusAddress common.Address) error {
@@ -85,9 +84,7 @@ func (s *service) ReportStatus() (common.Hash, error) {
 	num := lastOnline.LastSignedInfo.Nonce
 	bttcAddress := common.HexToAddress(lastOnline.LastSignedInfo.BttcAddress)
 	signedTime := lastOnline.LastSignedInfo.SignedTime
-
 	signature, err := hex.DecodeString(strings.Replace(lastOnline.LastSignature, "0x", "", -1))
-
 	//fmt.Println("... ReportStatus, param = ", peer, createTime, version, num, bttcAddress, signedTime, signature)
 	fmt.Printf("... ReportStatus, lastOnline = %+v \n", lastOnline)
 
@@ -95,17 +92,15 @@ func (s *service) ReportStatus() (common.Hash, error) {
 	if err != nil {
 		return common.Hash{}, err
 	}
-	//fmt.Println("... ReportHeartStatus, callData, err = ", callData, err)
 
 	request := &transaction.TxRequest{
-		To:          &s.statusAddress, //&statusAddress,
+		To:          &s.statusAddress,
 		Data:        callData,
 		Value:       big.NewInt(0),
 		Description: "Report Heart Status",
 	}
 
 	txHash, err := s.transactionService.Send(context.Background(), request)
-	fmt.Println("... ReportStatus, txHash, err = ", txHash, err)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -132,7 +127,6 @@ func (s *service) genHashExt(ctx context.Context) (common.Hash, error) {
 	version := "1"
 	num := uint32(3)
 	bttcAddress := "0x22df207EC3C8D18fEDeed87752C5a68E5b4f6FbD"
-
 	fmt.Println("...... genHashExt, param = ", peer, createTime, version, num, bttcAddress)
 
 	callData, err := statusABI.Pack("genHashExt", peer, createTime, version, num, common.HexToAddress(bttcAddress))

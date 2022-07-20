@@ -77,8 +77,6 @@ func (dc *dcWrap) sendDataOnline(node *core.IpfsNode, config *config.Config) {
 	bo := backoff.NewExponentialBackOff()
 	bo.MaxElapsedTime = maxRetryTotal
 	backoff.Retry(func() error {
-		//fmt.Println("... req online ", sm)
-
 		err := dc.doSendDataOnline(node.Context(), config, sm)
 		if err != nil {
 			fmt.Printf("--- online, doSendDataOnline error = %+v \n", err)

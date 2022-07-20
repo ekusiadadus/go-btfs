@@ -3,7 +3,6 @@ package chain
 import (
 	"encoding/base64"
 	"fmt"
-	onlinePb "github.com/tron-us/go-btfs-common/protos/online"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"github.com/bittorrent/go-btfs/transaction/storage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/tron-us/go-btfs-common/crypto"
+	onlinePb "github.com/tron-us/go-btfs-common/protos/online"
 )
 
 // after btfs init

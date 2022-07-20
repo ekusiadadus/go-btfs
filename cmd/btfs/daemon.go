@@ -474,7 +474,7 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 	// init status heart
 	err = reportstatus.Init(chainInfo.TransactionService, cfg, chainCfg.StatusAddress)
 	if err != nil {
-		fmt.Println("init status heart err: ", err)
+		fmt.Println("init report status, err: ", err)
 		return err
 	}
 
