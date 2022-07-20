@@ -17,24 +17,12 @@ import (
 	ic "github.com/libp2p/go-libp2p-crypto"
 )
 
-type SignedInfo struct {
-	Peer        string `json:"peer"`
-	CreatedTime uint32 `json:"created_time"`
-	Version     string `json:"version"`
-	Nonce       uint32 `json:"nonce"`
-	BttcAddress string `json:"bttc_address"`
-	SignedTime  uint32 `json:"signed_time"`
-	Signature   string `json:"signature"`
-	Reported    bool
-	LastTime    time.Time
+func isReportOnlineEnabled(cfg *config.Config) bool {
+	return cfg.Experimental.StorageHostEnabled && cfg.Experimental.ReportOnline
 }
 
-var GSignedInfo SignedInfo
-var OnlineServerDomain = "http://localhost:50051"
-
 func (dc *dcWrap) doSendDataOnline(ctx context.Context, config *config.Config, sm *onlinePb.ReqSignMetrics) error {
-	//cb := cgrpc.OnlineClient(config.Services.StatusServerDomain)
-	cb := cgrpc.OnlineClient(OnlineServerDomain)
+	cb := cgrpc.OnlineClient(config.Services.OnlineServerDomain)
 	return cb.WithContext(ctx, func(ctx context.Context, client onlinePb.OnlineServiceClient) error {
 		resp, err := client.UpdateSignMetrics(ctx, sm)
 		if err != nil {
@@ -181,32 +169,16 @@ func (dc *dcWrap) collectionAgentOnline(node *core.IpfsNode) {
 	// Force tick on immediate start
 	// make the configuration available in the for loop
 	for ; true; <-tick.C {
-		fmt.Println("")
-		fmt.Println("--- collectionAgent, Online ---")
-
-		config, err := dc.node.Repo.Config()
+		cfg, err := dc.node.Repo.Config()
 		if err != nil {
 			continue
 		}
 
-		// test...
-		dc.sendDataOnline(node, config)
+		if isReportOnlineEnabled(cfg) {
+			fmt.Println("")
+			fmt.Println("--- collectionAgent, Online ---")
 
-		//if isAnalyticsEnabled(config) {
-		//	report, err := chain.GetReportStatus()
-		//	if err != nil {
-		//		continue
-		//	}
-		//
-		//	now := time.Now()
-		//	// report only 1 hour, and must after 10 hour.
-		//	if (now.Unix()%86400) > report.ReportStatusSeconds &&
-		//		(now.Unix()%86400) < report.ReportStatusSeconds+3600 &&
-		//		now.Sub(report.LastReport) > 10*time.Hour {
-		//
-		//		dc.sendDataOnline(node, config)
-		//	}
-		//
-		//}
+			dc.sendDataOnline(node, cfg)
+		}
 	}
 }

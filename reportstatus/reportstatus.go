@@ -3,13 +3,13 @@ package reportstatus
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"github.com/bittorrent/go-btfs/chain"
 	"math/big"
 	"strings"
 	"time"
 
+	config "github.com/TRON-US/go-btfs-config"
+	"github.com/bittorrent/go-btfs/chain"
 	"github.com/bittorrent/go-btfs/reportstatus/abi"
 	"github.com/bittorrent/go-btfs/transaction"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,16 +29,13 @@ const (
 	statusHeartAddress = "0x084616130594B1ac217216b4999057604ac9d753"
 )
 
-func Init(transactionService transaction.Service) error {
-	var currentAddress common.Address
-	if statusHeartAddress == "" {
-		return errors.New("no known status heart address for this network")
-	} else {
-		currentAddress = common.HexToAddress(statusHeartAddress)
-	}
-
-	New(currentAddress, transactionService)
+func Init(transactionService transaction.Service, cfg *config.Config, statusAddress common.Address) error {
+	New(statusAddress, transactionService, cfg)
 	return nil
+}
+
+func isReportStatusEnabled(cfg *config.Config) bool {
+	return cfg.Experimental.StorageHostEnabled && cfg.Experimental.ReportStatusContract
 }
 
 type service struct {
@@ -54,19 +51,21 @@ type Service interface {
 	CheckReportStatus() error
 }
 
-func New(statusAddress common.Address, transactionService transaction.Service) Service {
+func New(statusAddress common.Address, transactionService transaction.Service, cfg *config.Config) Service {
 	serv = &service{
 		statusAddress:      statusAddress,
 		transactionService: transactionService,
 	}
 
-	go func() {
-		cycleCheckReport()
-	}()
+	if isReportStatusEnabled(cfg) {
+		go func() {
+			cycleCheckReport()
+		}()
+	}
 	return serv
 }
 
-// report heart status
+// ReportStatus report heart status
 func (s *service) ReportStatus() (common.Hash, error) {
 	lastOnline, err := chain.GetLastOnline()
 	if err != nil {
