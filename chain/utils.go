@@ -167,7 +167,7 @@ var keyReportStatus = "keyReportStatus"
 
 type ReportStatusInfo struct {
 	ReportStatusSeconds int64
-	LastReport          time.Time
+	LastReportTime      time.Time
 }
 
 func GetReportStatus() (*ReportStatusInfo, error) {
@@ -175,7 +175,7 @@ func GetReportStatus() (*ReportStatusInfo, error) {
 	err := StateStore.Get(keyReportStatus, &reportStatusInfo)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			reportStatusInfo = ReportStatusInfo{ReportStatusSeconds: int64(rand.Intn(100000000) % 86400), LastReport: time.Time{}}
+			reportStatusInfo = ReportStatusInfo{ReportStatusSeconds: int64(rand.Intn(100000000) % 86400), LastReportTime: time.Time{}}
 			err := StateStore.Put(keyReportStatus, reportStatusInfo)
 			if err != nil {
 				fmt.Println("StoreChainIdIfNotExists: init StoreChainId err: ", err)
@@ -187,18 +187,18 @@ func GetReportStatus() (*ReportStatusInfo, error) {
 	return &reportStatusInfo, nil
 }
 
-func SetReportStatusTodayTrue() (*ReportStatusInfo, error) {
+func SetReportStatusOK() (*ReportStatusInfo, error) {
 	var reportStatusInfo ReportStatusInfo
 	err := StateStore.Get(keyReportStatus, &reportStatusInfo)
 	if err != nil {
 		return nil, err
 	}
-	reportStatusInfo.LastReport = time.Now()
+	reportStatusInfo.LastReportTime = time.Now()
 	err = StateStore.Put(keyReportStatus, reportStatusInfo)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("SetReportStatus: ok! ")
+	fmt.Println("... ReportStatus, SetReportStatus: ok! ")
 	return &reportStatusInfo, nil
 }
 

@@ -44,9 +44,9 @@ import (
 	nodeMount "github.com/bittorrent/go-btfs/fuse/node"
 	"github.com/bittorrent/go-btfs/repo"
 	fsrepo "github.com/bittorrent/go-btfs/repo/fsrepo"
+	"github.com/bittorrent/go-btfs/reportstatus"
 	"github.com/bittorrent/go-btfs/settlement/swap/vault"
 	"github.com/bittorrent/go-btfs/spin"
-	"github.com/bittorrent/go-btfs/statusheart"
 	"github.com/bittorrent/go-btfs/transaction"
 	"github.com/bittorrent/go-btfs/transaction/crypto"
 	"github.com/bittorrent/go-btfs/transaction/storage"
@@ -472,7 +472,7 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 	}
 
 	// init status heart
-	err = statusheart.Init(chainInfo.TransactionService)
+	err = reportstatus.Init(chainInfo.TransactionService)
 	if err != nil {
 		fmt.Println("init status heart err: ", err)
 		return err

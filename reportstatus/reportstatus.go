@@ -1,4 +1,4 @@
-package statusheart
+package reportstatus
 
 import (
 	"context"
@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bittorrent/go-btfs/statusheart/abi"
+	"github.com/bittorrent/go-btfs/reportstatus/abi"
 	"github.com/bittorrent/go-btfs/transaction"
 	"github.com/ethereum/go-ethereum/common"
 
 	logging "github.com/ipfs/go-log"
 )
 
-var log = logging.Logger("status-heart:report")
+var log = logging.Logger("report-status-contract:")
 
 var (
 	statusABI = transaction.ParseABIUnchecked(abi.StatusHeartABI)
@@ -110,6 +110,10 @@ func (s *service) ReportStatus() (common.Hash, error) {
 	if err != nil {
 		return common.Hash{}, err
 	}
+	_, err = chain.SetReportStatusOK()
+	if err != nil {
+		return common.Hash{}, err
+	}
 
 	// WaitForReceipt takes long time
 	go func() {
@@ -179,7 +183,24 @@ func cycleCheckReport() {
 		fmt.Println("")
 		fmt.Println("... CheckReportStatus ...")
 
-		err := serv.CheckReportStatus()
+		report, err := chain.GetReportStatus()
+		if err != nil {
+			continue
+		}
+		fmt.Printf("... CheckReportStatus report: %+v \n", report)
+
+		//now := time.Now()
+		//// report only 1 hour, and must after 10 hour.
+		//if (now.Unix()%86400) > report.ReportStatusSeconds &&
+		//	(now.Unix()%86400) < report.ReportStatusSeconds+3600 &&
+		//	now.Sub(report.LastReportTime) > 10*time.Hour {
+		//	err := serv.CheckReportStatus()
+		//	if err != nil {
+		//		continue
+		//	}
+		//}
+
+		err = serv.CheckReportStatus()
 		if err != nil {
 			continue
 		}
