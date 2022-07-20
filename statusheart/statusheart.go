@@ -25,7 +25,7 @@ var (
 )
 
 const (
-	ReportStatusTime   = 5 * time.Second // 10 * time.Second
+	ReportStatusTime   = 10 * time.Second // 10 * time.Second
 	statusHeartAddress = "0x084616130594B1ac217216b4999057604ac9d753"
 )
 
@@ -73,15 +73,12 @@ func (s *service) ReportStatus() (common.Hash, error) {
 		return common.Hash{}, err
 	}
 
-	fmt.Println("... 1. ReportStatus")
 	if lastOnline == nil {
 		return common.Hash{}, nil
 	}
 	if len(lastOnline.LastSignedInfo.Peer) <= 0 {
 		return common.Hash{}, nil
 	}
-
-	fmt.Println("... 2. ReportStatus")
 
 	peer := lastOnline.LastSignedInfo.Peer
 	createTime := lastOnline.LastSignedInfo.CreatedTime
@@ -90,16 +87,16 @@ func (s *service) ReportStatus() (common.Hash, error) {
 	bttcAddress := common.HexToAddress(lastOnline.LastSignedInfo.BttcAddress)
 	signedTime := lastOnline.LastSignedInfo.SignedTime
 
-	fmt.Println("... 3. ReportStatus")
 	signature, err := hex.DecodeString(strings.Replace(lastOnline.LastSignature, "0x", "", -1))
 
-	fmt.Println("...... ReportHeartStatus, param = ", peer, createTime, version, num, bttcAddress, signedTime, signature)
+	//fmt.Println("... ReportStatus, param = ", peer, createTime, version, num, bttcAddress, signedTime, signature)
+	fmt.Printf("... ReportStatus, lastOnline = %+v \n", lastOnline)
 
 	callData, err := statusABI.Pack("reportStatus", peer, createTime, version, num, bttcAddress, signedTime, signature)
 	if err != nil {
 		return common.Hash{}, err
 	}
-	fmt.Println("...... ReportHeartStatus, callData, err = ", callData, err)
+	//fmt.Println("... ReportHeartStatus, callData, err = ", callData, err)
 
 	request := &transaction.TxRequest{
 		To:          &s.statusAddress, //&statusAddress,
@@ -109,7 +106,7 @@ func (s *service) ReportStatus() (common.Hash, error) {
 	}
 
 	txHash, err := s.transactionService.Send(context.Background(), request)
-	fmt.Println("...... ReportHeartStatus, txHash, err = ", txHash, err)
+	fmt.Println("... ReportStatus, txHash, err = ", txHash, err)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -179,7 +176,8 @@ func cycleCheckReport() {
 	// Force tick on immediate start
 	// CheckReport in the for loop
 	for ; true; <-tick.C {
-		fmt.Println("... CheckReportStatus ......")
+		fmt.Println("")
+		fmt.Println("... CheckReportStatus ...")
 
 		err := serv.CheckReportStatus()
 		if err != nil {

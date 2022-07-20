@@ -10,7 +10,6 @@ import (
 	"github.com/bittorrent/go-btfs/chain"
 	"github.com/bittorrent/go-btfs/core"
 	onlinePb "github.com/tron-us/go-btfs-common/protos/online"
-	pb "github.com/tron-us/go-btfs-common/protos/status"
 	cgrpc "github.com/tron-us/go-btfs-common/utils/grpc"
 
 	"github.com/cenkalti/backoff/v4"
@@ -34,7 +33,8 @@ var GSignedInfo SignedInfo
 var OnlineServerDomain = "http://localhost:50051"
 
 func (dc *dcWrap) doSendDataOnline(ctx context.Context, config *config.Config, sm *onlinePb.ReqSignMetrics) error {
-	cb := cgrpc.OnlineClient(config.Services.StatusServerDomain)
+	//cb := cgrpc.OnlineClient(config.Services.StatusServerDomain)
+	cb := cgrpc.OnlineClient(OnlineServerDomain)
 	return cb.WithContext(ctx, func(ctx context.Context, client onlinePb.OnlineServiceClient) error {
 		resp, err := client.UpdateSignMetrics(ctx, sm)
 		if err != nil {
@@ -46,7 +46,7 @@ func (dc *dcWrap) doSendDataOnline(ctx context.Context, config *config.Config, s
 			chain.ErrStatus = nil
 		}
 
-		fmt.Printf(".... online, lastSignedInfo = %+v \n", resp.SignedInfo)
+		fmt.Printf("--- online, resp, SignedInfo = %+v, signature = %+v \n", resp.SignedInfo, resp.Signature)
 		if (resp.SignedInfo != nil) && len(resp.SignedInfo.Peer) > 0 {
 			onlineInfo := chain.LastOnlineInfo{
 				LastSignedInfo: onlinePb.SignedInfo{
@@ -93,7 +93,7 @@ func (dc *dcWrap) sendDataOnline(node *core.IpfsNode, config *config.Config) {
 
 		err := dc.doSendDataOnline(node.Context(), config, sm)
 		if err != nil {
-			fmt.Printf(".... online, doSendDataOnline error = %+v \n", err)
+			fmt.Printf("--- online, doSendDataOnline error = %+v \n", err)
 			log.Infof("failed： doSendDataOnline to online server: %+v ", err)
 		} else {
 			log.Debug("sent doSendDataOnline to online server")
@@ -128,21 +128,6 @@ func (dc *dcWrap) doPrepDataOnline(btfsNode *core.IpfsNode) (*onlinePb.ReqSignMe
 	sm.Signature = signature
 	sm.PublicKey = publicKey
 	return sm, errs, nil
-}
-
-func (dc *dcWrap) doSendData(ctx context.Context, config *config.Config, sm *pb.SignedMetrics) error {
-	cb := cgrpc.StatusClient(config.Services.StatusServerDomain)
-	return cb.WithContext(ctx, func(ctx context.Context, client pb.StatusServiceClient) error {
-		_, err := client.UpdateMetricsAndDiscovery(ctx, sm)
-		if err != nil {
-			chain.CodeStatus = chain.ConstCodeError
-			chain.ErrStatus = err
-		} else {
-			chain.CodeStatus = chain.ConstCodeSuccess
-			chain.ErrStatus = nil
-		}
-		return err
-	})
 }
 
 func (dc *dcWrap) getPayloadOnline(btfsNode *core.IpfsNode) ([]byte, error) {
@@ -183,7 +168,45 @@ func (dc *dcWrap) getPayloadOnline(btfsNode *core.IpfsNode) ([]byte, error) {
 		return nil, err
 	}
 
-	fmt.Printf("... online, pn.LastSignedInfo:%+v, pn.LastSignature:%+v, pn.LastTime:%+v \n", pn.LastSignedInfo, pn.LastSignature, pn.LastTime)
+	fmt.Printf("--- online, req,  LastSignedInfo:%+v, LastSignature:%+v, pn.LastTime:%+v \n", pn.LastSignedInfo, pn.LastSignature, pn.LastTime)
 
 	return bytes, nil
+}
+
+func (dc *dcWrap) collectionAgentOnline(node *core.IpfsNode) {
+	//tick := time.NewTicker(heartBeat)
+	tick := time.NewTicker(10 * time.Second)
+	defer tick.Stop()
+
+	// Force tick on immediate start
+	// make the configuration available in the for loop
+	for ; true; <-tick.C {
+		fmt.Println("")
+		fmt.Println("--- collectionAgent, Online ---")
+
+		config, err := dc.node.Repo.Config()
+		if err != nil {
+			continue
+		}
+
+		// test...
+		dc.sendDataOnline(node, config)
+
+		//if isAnalyticsEnabled(config) {
+		//	report, err := chain.GetReportStatus()
+		//	if err != nil {
+		//		continue
+		//	}
+		//
+		//	now := time.Now()
+		//	// report only 1 hour, and must after 10 hour.
+		//	if (now.Unix()%86400) > report.ReportStatusSeconds &&
+		//		(now.Unix()%86400) < report.ReportStatusSeconds+3600 &&
+		//		now.Sub(report.LastReport) > 10*time.Hour {
+		//
+		//		dc.sendDataOnline(node, config)
+		//	}
+		//
+		//}
+	}
 }

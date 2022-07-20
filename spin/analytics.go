@@ -15,6 +15,7 @@ import (
 	iface "github.com/TRON-US/interface-go-btfs-core"
 	nodepb "github.com/tron-us/go-btfs-common/protos/node"
 	pb "github.com/tron-us/go-btfs-common/protos/status"
+	cgrpc "github.com/tron-us/go-btfs-common/utils/grpc"
 
 	"github.com/alecthomas/units"
 	"github.com/cenkalti/backoff/v4"
@@ -128,7 +129,8 @@ func Analytics(api iface.CoreAPI, cfgRoot string, node *core.IpfsNode, BTFSVersi
 	}
 
 	dc.setRoles()
-	go dc.collectionAgent(node)
+	//go dc.collectionAgent(node)
+	go dc.collectionAgentOnline(node)
 }
 
 func (dc *dcWrap) setRoles() {
@@ -275,6 +277,21 @@ func (dc *dcWrap) doPrepData(btfsNode *core.IpfsNode) (*pb.SignedMetrics, []erro
 	return sm, errs, nil
 }
 
+func (dc *dcWrap) doSendData(ctx context.Context, config *config.Config, sm *pb.SignedMetrics) error {
+	cb := cgrpc.StatusClient(config.Services.StatusServerDomain)
+	return cb.WithContext(ctx, func(ctx context.Context, client pb.StatusServiceClient) error {
+		_, err := client.UpdateMetricsAndDiscovery(ctx, sm)
+		if err != nil {
+			chain.CodeStatus = chain.ConstCodeError
+			chain.ErrStatus = err
+		} else {
+			chain.CodeStatus = chain.ConstCodeSuccess
+			chain.ErrStatus = nil
+		}
+		return err
+	})
+}
+
 func (dc *dcWrap) getPayload(btfsNode *core.IpfsNode) ([]byte, error) {
 	dn, err := dc.getDiscoveryNodes()
 	if err != nil {
@@ -316,39 +333,19 @@ func (dc *dcWrap) getDiscoveryNodes() ([]*nodepb.DiscoveryNode, error) {
 }
 
 func (dc *dcWrap) collectionAgent(node *core.IpfsNode) {
-	//tick := time.NewTicker(heartBeat)
-	tick := time.NewTicker(5 * time.Second)
+	tick := time.NewTicker(heartBeat)
 	defer tick.Stop()
 	// Force tick on immediate start
 	// make the configuration available in the for loop
 	for ; true; <-tick.C {
-		fmt.Println("... collectionAgent ......")
-
 		config, err := dc.node.Repo.Config()
 		if err != nil {
 			continue
 		}
 		// check config for explicit consent to data collect
 		// consent can be changed without reinitializing data collection
-		//if isAnalyticsEnabled(config) {
-		//	dc.sendData(node, config)
-		//}
-
 		if isAnalyticsEnabled(config) {
-			report, err := chain.GetReportStatus()
-			if err != nil {
-				continue
-			}
-
-			now := time.Now()
-			// report only 1 hour, and must after 10 hour.
-			if (now.Unix()%86400) > report.ReportStatusSeconds &&
-				(now.Unix()%86400) < report.ReportStatusSeconds+3600 &&
-				now.Sub(report.LastReport) > 10*time.Hour {
-
-				dc.sendDataOnline(node, config)
-			}
-
+			dc.sendData(node, config)
 		}
 	}
 }
