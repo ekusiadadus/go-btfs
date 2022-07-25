@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"strconv"
 	"time"
 
 	cmds "github.com/bittorrent/go-btfs-cmds"
@@ -93,7 +94,26 @@ var ReportListCmd = &cmds.Command{
 		Tagline: "report status contract list.",
 	},
 	RunTimeout: 5 * time.Minute,
+	Arguments: []cmds.Argument{
+		cmds.StringArg("from", true, false, "page offset"),
+		cmds.StringArg("limit", true, false, "page limit."),
+	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
+		from, err := strconv.Atoi(req.Arguments[0])
+		if err != nil {
+			return fmt.Errorf("parse from:%v failed", req.Arguments[0])
+		}
+		limit, err := strconv.Atoi(req.Arguments[1])
+		if err != nil {
+			return fmt.Errorf("parse limit:%v failed", req.Arguments[1])
+		}
+		if from < 0 {
+			return fmt.Errorf("invalid from: %d", from)
+		}
+		if limit < 0 {
+			return fmt.Errorf("invalid limit: %d", limit)
+		}
+
 		list, err := chain.GetReportStatusListOK()
 		if err != nil {
 			return err
@@ -101,9 +121,9 @@ var ReportListCmd = &cmds.Command{
 		if list == nil {
 			return nil
 		}
-
-		from := 0
-		limit := 10
+		//
+		//from := 0
+		//limit := 10
 
 		From := len(list) - 1 - from - limit
 		if From <= 0 {
@@ -113,6 +133,8 @@ var ReportListCmd = &cmds.Command{
 		if To > len(list)-1 {
 			To = len(list) - 1
 		}
+		fmt.Println("From, To = ", From, To)
+
 		return cmds.EmitOnce(res, &ReportListCmdRet{
 			Records: list[From:To], //这里可能对。
 			Total:   len(list),
