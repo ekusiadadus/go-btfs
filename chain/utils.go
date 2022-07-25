@@ -213,35 +213,40 @@ type LevelDbReportStatusInfo struct {
 	TxHash         string    `json:"tx_hash"`
 	GasSpend       string    `json:"gas_spend"`
 	ReportTime     time.Time `json:"report_time"`
+	IncreaseNonce		uint32 `json:"increase_nonce"`
 }
 
 // SetReportStatusListOK store tx list
 func SetReportStatusListOK(r *LevelDbReportStatusInfo) ([]*LevelDbReportStatusInfo, error) {
+	init := false
+
 	rList := make([]*LevelDbReportStatusInfo, 0)
 	err := StateStore.Get(keyReportStatusList, &rList)
-	fmt.Println("_______ get err: ", err)
 	if err != nil {
 		if err.Error() == "storage: not found" {
+			init = true
 			// continue
 		} else {
 			return nil, err
 		}
 	}
 
+	if init {
+		r.IncreaseNonce = r.Nonce
+	} else {
+		r.IncreaseNonce = r.Nonce - rList[len(rList)-1].Nonce
+	}
+
 	rList = append(rList, r)
 	err = StateStore.Put(keyReportStatusList, rList)
-	fmt.Println("_______ set err: ", err)
 	if err != nil {
 		return nil, err
 	}
 	fmt.Println("... ReportStatus, SetReportStatusListOK: ok! rList = ", rList)
-	for i, r := range rList {
-		fmt.Printf("_______ r[%d]: %+v \n", i, r)
-	}
 	return rList, nil
 }
 
-// SetReportStatusListOK store tx list
+// GetReportStatusListOK store tx list
 func GetReportStatusListOK() ([]*LevelDbReportStatusInfo, error) {
 	rList := make([]*LevelDbReportStatusInfo, 0)
 	err := StateStore.Get(keyReportStatusList, &rList)
