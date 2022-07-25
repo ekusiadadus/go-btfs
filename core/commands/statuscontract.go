@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bittorrent/go-btfs/core/commands/cmdenv"
 	"io"
 	"math/big"
 	"strconv"
@@ -26,6 +27,7 @@ Vault services include issue cheque to peer, receive cheque and store operations
 }
 
 type TotalCmdRet struct {
+	PeerId         string `json:"peer_id"`
 	StatusContract string `json:"status_contract"`
 	TotalCount     int    `json:"total_count"`
 	TotalGasSpend  string `json:"total_gas_spend"`
@@ -37,6 +39,12 @@ var TotalCmd = &cmds.Command{
 	},
 	RunTimeout: 5 * time.Minute,
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
+		n, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+		peerId := n.Identity.Pretty()
+
 		list, err := chain.GetReportStatusListOK()
 		if err != nil {
 			return err
@@ -63,6 +71,7 @@ var TotalCmd = &cmds.Command{
 		}
 
 		return cmds.EmitOnce(res, &TotalCmdRet{
+			PeerId:         peerId,
 			StatusContract: list[len(list)-1].StatusContract,
 			TotalCount:     len(list),
 			TotalGasSpend:  totalGasSpend.String(),
@@ -71,8 +80,6 @@ var TotalCmd = &cmds.Command{
 	Type: TotalCmdRet{},
 	Encoders: cmds.EncoderMap{
 		cmds.Text: cmds.MakeTypedEncoder(func(req *cmds.Request, w io.Writer, out *TotalCmdRet) error {
-			//_, err := fmt.Fprintf(w, "TotalCmd, StatusContract:%s, Total:%d, TotalGasSpend:%+v",
-			//	out.StatusContract, out.TotalCount, out.TotalGasSpend)
 			marshaled, err := json.MarshalIndent(out, "", "\t")
 			if err != nil {
 				return err
@@ -87,6 +94,7 @@ var TotalCmd = &cmds.Command{
 type ReportListCmdRet struct {
 	Records []*chain.LevelDbReportStatusInfo `json:"records"`
 	Total   int                              `json:"total"`
+	PeerId  string                           `json:"peer_id"`
 }
 
 var ReportListCmd = &cmds.Command{
@@ -99,6 +107,12 @@ var ReportListCmd = &cmds.Command{
 		cmds.StringArg("limit", true, false, "page limit."),
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
+		n, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+		peerId := n.Identity.Pretty()
+
 		from, err := strconv.Atoi(req.Arguments[0])
 		if err != nil {
 			return fmt.Errorf("parse from:%v failed", req.Arguments[0])
@@ -138,6 +152,7 @@ var ReportListCmd = &cmds.Command{
 		return cmds.EmitOnce(res, &ReportListCmdRet{
 			Records: list[From:To], //这里可能对。
 			Total:   len(list),
+			PeerId:  peerId,
 		})
 	},
 	Type: ReportListCmdRet{},
