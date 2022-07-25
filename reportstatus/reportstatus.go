@@ -26,8 +26,8 @@ var (
 )
 
 const (
-	ReportStatusTime = 10 * time.Minute
-	//ReportStatusTime = 10 * time.Second // 10 * time.Minute
+	//ReportStatusTime = 10 * time.Minute
+	ReportStatusTime = 60 * time.Second // 10 * time.Minute
 )
 
 func Init(transactionService transaction.Service, cfg *config.Config, configRoot string, statusAddress common.Address, chainId int64) error {
@@ -88,18 +88,18 @@ func (s *service) ReportStatus() (common.Hash, error) {
 	peer := lastOnline.LastSignedInfo.Peer
 	createTime := lastOnline.LastSignedInfo.CreatedTime
 	version := lastOnline.LastSignedInfo.Version
-	num := lastOnline.LastSignedInfo.Nonce
+	nonce := lastOnline.LastSignedInfo.Nonce
 	bttcAddress := common.HexToAddress(lastOnline.LastSignedInfo.BttcAddress)
 	signedTime := lastOnline.LastSignedInfo.SignedTime
 	signature, err := hex.DecodeString(strings.Replace(lastOnline.LastSignature, "0x", "", -1))
-	//fmt.Println("... ReportStatus, param = ", peer, createTime, version, num, bttcAddress, signedTime, signature)
 	fmt.Printf("... ReportStatus, lastOnline = %+v \n", lastOnline)
 
-	callData, err := statusABI.Pack("reportStatus", peer, createTime, version, num, bttcAddress, signedTime, signature)
+	callData, err := statusABI.Pack("reportStatus", peer, createTime, version, nonce, bttcAddress, signedTime, signature)
 	if err != nil {
 		return common.Hash{}, err
 	}
 
+	s.statusAddress = common.HexToAddress("0x39EE9a950E52dE1B228C989B4D035f008d47DA77")
 	request := &transaction.TxRequest{
 		To:          &s.statusAddress,
 		Data:        callData,
@@ -112,7 +112,32 @@ func (s *service) ReportStatus() (common.Hash, error) {
 		return common.Hash{}, err
 	}
 	fmt.Println("... ReportStatus, txHash, err = ", txHash, err)
+
+	now := time.Now()
 	_, err = chain.SetReportStatusOK()
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	stx, err := s.transactionService.WaitForReceipt(context.Background(), txHash)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	fmt.Println("... ReportStatus, stx.GasPrice, stx.GasUsed, stx.CumulativeGasUsed = ", stx.GasUsed, stx.CumulativeGasUsed)
+
+	gasPrice := getGasPrice(request)
+	gasTotal := big.NewInt(1).Mul(gasPrice, big.NewInt(int64(stx.GasUsed)))
+	r := &chain.LevelDbReportStatusInfo{
+		Peer:           peer,
+		BttcAddress:    bttcAddress.String(),
+		StatusContract: s.statusAddress.String(),
+		Nonce:          nonce,
+		TxHash:         txHash.String(),
+		GasSpend:       gasTotal.String(),
+		ReportTime:     now,
+	}
+	_, err = chain.SetReportStatusListOK(r)
+	fmt.Println("_______ err: ", err)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -126,6 +151,16 @@ func (s *service) ReportStatus() (common.Hash, error) {
 		}()
 	}()
 	return txHash, nil
+}
+
+func getGasPrice(request *transaction.TxRequest) *big.Int {
+	var gasPrice *big.Int
+	if request.GasPrice == nil {
+		gasPrice = big.NewInt(300000000000000)
+	} else {
+		gasPrice = request.GasPrice
+	}
+	return gasPrice
 }
 
 // report heart status
@@ -239,22 +274,28 @@ func cycleCheckReport() {
 		fmt.Println("... CheckReportStatus ...")
 
 		report, err := chain.GetReportStatus()
+		fmt.Printf("... CheckReportStatus report: %+v err:%+v \n", report, err)
 		if err != nil {
 			continue
 		}
 		fmt.Printf("... CheckReportStatus report: %+v \n", report)
 
-		now := time.Now()
-		nowUnixMod := now.Unix() % 86400
-		// report only 1 hour every, and must after 10 hour.
-		if nowUnixMod > report.ReportStatusSeconds &&
-			nowUnixMod < report.ReportStatusSeconds+3600 &&
-			now.Sub(report.LastReportTime) > 10*time.Hour {
-
-			err = serv.CheckReportStatus()
-			if err != nil {
-				continue
-			}
+		err = serv.CheckReportStatus()
+		if err != nil {
+			continue
 		}
+
+		//now := time.Now()
+		//nowUnixMod := now.Unix() % 86400
+		//// report only 1 hour every, and must after 10 hour.
+		//if nowUnixMod > report.ReportStatusSeconds &&
+		//	nowUnixMod < report.ReportStatusSeconds+3600 &&
+		//	now.Sub(report.LastReportTime) > 10*time.Hour {
+		//
+		//	err = serv.CheckReportStatus()
+		//	if err != nil {
+		//		continue
+		//	}
+		//}
 	}
 }

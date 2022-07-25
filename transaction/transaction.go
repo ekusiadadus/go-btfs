@@ -186,6 +186,9 @@ func (t *transactionService) Send(ctx context.Context, request *TxRequest) (txHa
 
 	txHash = signedTx.Hash()
 
+	fmt.Printf("--- transaction, price:%+v gas:%+v, value:%+v cost:%+v \n",
+		signedTx.GasPrice(), signedTx.Gas(), signedTx.Value(), signedTx.Cost())
+
 	err = t.store.Put(storedTransactionKey(txHash), StoredTransaction{
 		To:          signedTx.To(),
 		Data:        signedTx.Data(),
