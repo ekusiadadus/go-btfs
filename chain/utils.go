@@ -213,7 +213,7 @@ type LevelDbReportStatusInfo struct {
 	TxHash         string    `json:"tx_hash"`
 	GasSpend       string    `json:"gas_spend"`
 	ReportTime     time.Time `json:"report_time"`
-	IncreaseNonce		uint32 `json:"increase_nonce"`
+	IncreaseNonce  uint32    `json:"increase_nonce"`
 }
 
 // SetReportStatusListOK store tx list

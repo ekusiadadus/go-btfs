@@ -137,7 +137,6 @@ func (s *service) ReportStatus() (common.Hash, error) {
 		ReportTime:     now,
 	}
 	_, err = chain.SetReportStatusListOK(r)
-	fmt.Println("_______ err: ", err)
 	if err != nil {
 		return common.Hash{}, err
 	}
